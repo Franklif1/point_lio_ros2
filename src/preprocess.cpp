@@ -79,6 +79,10 @@ void Preprocess::process(const sensor_msgs::msg::PointCloud2::SharedPtr &msg, Po
             unilidar_handler(msg);
             break;
 
+        case HAP://6 -- 新增的 HAP 选项
+            hap_handler(msg);
+            break;
+
         default:
             printf("Error LiDAR Type");
             break;
@@ -385,6 +389,54 @@ void Preprocess::hesai_handler(const sensor_msgs::msg::PointCloud2::SharedPtr &m
     }
 
 }
+
+// =========================================================================
+// 新增的专门处理带有 float64 timestamp 自定义 PointCloud2 的 HAP 解析函数
+// =========================================================================
+void Preprocess::hap_handler(const sensor_msgs::msg::PointCloud2::SharedPtr &msg)
+{
+  pl_surf.clear();
+  pl_corn.clear();
+  pl_full.clear();
+
+  // 使用专门定义匹配包含 timestamp 的点云结构体
+  pcl::PointCloud<livox_ros::LivoxHAPPoint> pl_orig;
+  pcl::fromROSMsg(*msg, pl_orig);
+  int plsize = pl_orig.points.size();
+  if (plsize == 0)
+    return;
+  pl_surf.reserve(plsize);
+
+  // 以该帧第一个点的时间戳（纳秒）作为基准时间
+  double base_time = pl_orig.points[0].timestamp;
+
+  for (uint i = 0; i < plsize; ++i)
+  {
+    // 应用降采样滤波
+    if (i % point_filter_num != 0)
+      continue;
+
+    PointType added_pt;
+    added_pt.normal_x = 0;
+    added_pt.normal_y = 0;
+    added_pt.normal_z = 0;
+    added_pt.x = pl_orig.points[i].x;
+    added_pt.y = pl_orig.points[i].y;
+    added_pt.z = pl_orig.points[i].z;
+    added_pt.intensity = pl_orig.points[i].intensity;
+    
+    // 关键修正：将绝对时间戳(纳秒)转换为相对基准时间的偏移(毫秒)。
+    // 1 毫秒 = 1,000,000 纳秒，因此乘以 1e-6 (或除以 1e6)
+    added_pt.curvature = (pl_orig.points[i].timestamp - base_time) * 1e-6;
+
+    // 排除雷达盲区内的异常点
+    if (added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z > (blind * blind))
+    {
+      pl_surf.push_back(std::move(added_pt));
+    }
+  }
+}
+
 
 void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types) {
     int plsize = pl.size();

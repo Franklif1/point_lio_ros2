@@ -11,7 +11,7 @@ typedef pcl::PointXYZINormal PointType;
 typedef pcl::PointCloud<PointType> PointCloudXYZI;
 
 enum LID_TYPE {
-    AVIA = 1, VELO16, OUST64, HESAIxt32, UNILIDAR
+    AVIA = 1, VELO16, OUST64, HESAIxt32, UNILIDAR, HAP
 }; //{1, 2, 3, 4}
 enum TIME_UNIT {
     SEC = 0, MS = 1, US = 2, NS = 3
@@ -133,6 +133,33 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(ouster_ros::Point,
                                           (std::uint32_t, range, range)
 )
 
+namespace livox_ros
+{
+
+// 新增 HAP 的点云结构体，专门匹配带有 float64 timestamp 的 PointCloud2 格式
+typedef struct {
+  float x;            
+  float y;            
+  float z;            
+  float intensity;    
+  uint8_t tag;        
+  uint8_t line;       
+  double timestamp;   /**< float64 Timestamp of point */
+} LivoxHAPPoint;
+
+}
+
+// 注册 HAP 结构体，让 PCL 能自动解析传入的 ROS PointCloud2 消息字段
+POINT_CLOUD_REGISTER_POINT_STRUCT(livox_ros::LivoxHAPPoint,
+    (float, x, x)
+    (float, y, y)
+    (float, z, z)
+    (float, intensity, intensity)
+    (uint8_t, tag, tag)
+    (uint8_t, line, line)
+    (double, timestamp, timestamp)
+)
+
 class Preprocess {
 public:
 //   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -168,6 +195,8 @@ private:
     void unilidar_handler(const sensor_msgs::msg::PointCloud2::SharedPtr &msg);
 
     void hesai_handler(const sensor_msgs::msg::PointCloud2::SharedPtr &msg);
+
+    void hap_handler(const sensor_msgs::msg::PointCloud2::SharedPtr &msg); // 新增的 handler
 
     void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
 
